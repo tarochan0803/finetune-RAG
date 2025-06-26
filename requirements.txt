@@ -1,0 +1,71 @@
+# Core dependencies
+torch>=2.0.0
+transformers>=4.36.0
+datasets>=2.14.0
+accelerate>=0.20.0
+peft>=0.6.0
+bitsandbytes>=0.41.0
+
+# RAG and Vector Search
+chromadb>=0.4.0
+langchain>=0.1.0
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.0
+
+# Web Framework
+streamlit>=1.28.0
+gradio>=3.50.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Monitoring and Visualization
+wandb>=0.15.0
+tensorboard>=2.13.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Optimization
+deepspeed>=0.10.0
+flash-attn>=2.3.0
+triton>=2.1.0
+
+# Utilities
+tqdm>=4.65.0
+loguru>=0.7.0
+click>=8.1.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Optional: MS-Swift integration
+# ms-swift>=2.0.0  # Uncomment if using Megatron-Swift features
+
+# Optional: Advanced features
+# vllm>=0.2.0  # For high-performance inference
+# guidance>=0.1.0  # For structured generation
+
+# Development dependencies (optional)
+pytest>=7.4.0
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Jupyter (for notebooks)
+jupyter>=1.0.0
+ipywidgets>=8.0.0
+
+# Text processing
+jieba>=0.42.0  # For Japanese text processing
+fugashi>=1.3.0  # Japanese tokenizer
+unidic-lite>=1.0.8  # Japanese dictionary
+
+# File handling
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Network and API
+requests>=2.31.0
+aiohttp>=3.8.0
