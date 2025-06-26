@@ -12,7 +12,7 @@ class Config:
         # 中間回答生成用 ローカルモデル
         self.base_model_name = "elyza/ELYZA-japanese-Llama-2-7b-instruct"
         # ★★★ LoRA アダプターのパスは環境に合わせて設定 ★★★
-        self.lora_adapter_path = "/home/ncnadmin/my_finetuned_elyza/ELYZA-japanese-Llama-2-7b-instruct_full" # 必要ない場合は None または空文字列
+        self.lora_adapter_path = "./full_spec_rag_model"  # フルスペックファインチューニング出力先
 
         # <<< NEW: 最適化関連フラグ >>>
         self.use_4bit_quant = True                # 4bit量子化を使用するかどうか
