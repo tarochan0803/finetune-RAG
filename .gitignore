@@ -22,38 +22,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyTorch
-*.pth
-*.pt
-
-# Datasets and Models
-*.bin
-*.safetensors
-*.gguf
-*.h5
-models/
-checkpoints/
-cache/
-converted_models/
-continual_learning_checkpoints/
-continual_learning_logs/
-task_history/
-fisher_matrices/
-replay_buffers/
-data/
-ai_root/models/
-
-# ChromaDB
-chroma_db/
-*.sqlite3
-
-# Logs
-*.log
-logs/
-tensorboard/
-runs/
-
-# Environment
+# Virtual environments
 .env
 .venv
 env/
@@ -69,51 +38,45 @@ venv.bak/
 *.swo
 *~
 
+# Logs
+*.log
+logs/
+
+# Data and models (large files)
+chroma_db/
+cache/
+checkpoints/
+ai_root/models/
+pytorch/
+old/
+
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Jupyter
+.ipynb_checkpoints
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Large model files
+*.bin
+*.safetensors
+*.gguf
+tourokuten_finetune_model/
+tourokuten_finetune_model_full/
+full_spec_rag_model/
 
 # Temporary files
 *.tmp
 *.temp
-optimization_log_*.txt
+*.backup
 
-# Large files and archives
-*.zip
-*.tar.gz
-*.rar
-*.7z
-*.run
-*.deb
-
-# Project specific
+# Specific large directories
+ai_root/
+pytorch/
 old/
-trush/
-12月にマークダウンのテストを追加したのはどのコミット？
-PRを作成して
-mainにリベースして、マージ競合を解決して
-変更をコミットして
-truck.html
-truck_fixed.html
-all_pkgs.txt
-claude-chat.js
-package-lock.json
-package.json
-
-# Training artifacts
-*.jsonl
-!data_examples/*.jsonl
-premium_training_dataset.jsonl
-enhanced_training_dataset.jsonl
-fine_tuning_dynamic_instruction_dataset.jsonl

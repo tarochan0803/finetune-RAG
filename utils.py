@@ -206,29 +206,75 @@ def expand_query(query: str, expansion_dict: Optional[dict]) -> List[str]:
 
 # --- リランキング関数 (基本的なキーワードスコアリング - 変更なし) ---
 # 本格的な実装には CrossEncoder モデルなどが必要になる場合がある
-def rerank_documents(query: str, docs: List[Document], embedding_function: Any = None, logger: logging.Logger = None, k: int = 10) -> List[Document]:
-    """取得ドキュメントをリランキング（簡易キーワードスコア例）。上位k件を返す"""
+def rerank_documents(query: str, docs: List[Document], embedding_function: Any = None, logger: logging.Logger = None, k: int = 10, config: Any = None) -> List[Document]:
+    """取得ドキュメントをリランキング（企業名優先スコアリング）。上位k件を返す"""
     if not docs:
         return []
     if logger is None:
         logger = logging.getLogger("RAGApp")
 
-    logger.debug(f"Reranking {len(docs)} documents for query: '{query[:50]}...' (using simple keyword scoring)")
-    norm_query = normalize_str(query) # クエリを正規化
+    logger.debug(f"Reranking {len(docs)} documents for query: '{query[:50]}...' (using company-focused scoring)")
+    norm_query = normalize_str(query)
+    
+    # 企業名キーワードの設定
+    company_keywords = ["株式会社", "有限会社", "合同会社", "協同組合", "工務店", "建設", "ホーム"]
+    if config and hasattr(config, 'company_keywords'):
+        company_keywords = config.company_keywords
+    
+    company_boost = 2.0  # 企業名マッチ時のブースト率
+    if config and hasattr(config, 'company_boost_factor'):
+        company_boost = config.company_boost_factor
 
     scored_docs = []
     for doc in docs:
         text = doc.page_content
-        norm_text = normalize_str(text) # ドキュメントテキストも正規化
-
-        # シンプルなキーワードスコアリングロジック（改善の余地あり）
+        norm_text = normalize_str(text)
+        metadata = doc.metadata
+        
+        # 基本スコア計算
         score_kw = 0.0
         if norm_query in norm_text:
-            score_kw = 1.0 + norm_text.count(norm_query) * 0.1 # クエリが含まれていたら基本スコア1、出現回数で加点
-
-        # スコアをメタデータに追加 (後で参照可能にする)
-        doc.metadata['rerank_score'] = score_kw
-        scored_docs.append((score_kw, doc)) # (スコア, ドキュメント) のタプルでリストに追加
+            score_kw = 1.0 + norm_text.count(norm_query) * 0.1
+        
+        # 企業名関連スコアブースト
+        company_score_boost = 0.0
+        
+        # 1. メタデータのcompanyフィールドでマッチング
+        if 'company' in metadata and metadata['company']:
+            company_name = normalize_str(str(metadata['company']))
+            if norm_query in company_name or company_name in norm_query:
+                company_score_boost += company_boost * 1.5  # 企業名直接マッチは最高ブースト
+        
+        # 2. テキスト内の企業名キーワードマッチング
+        for keyword in company_keywords:
+            norm_keyword = normalize_str(keyword)
+            if norm_keyword in norm_query and norm_keyword in norm_text:
+                company_score_boost += company_boost * 0.5
+        
+        # 3. 企業名らしきパターンの検出
+        company_patterns = [
+            r'株式会社[\wあ-んア-ン一-龜]+',
+            r'[\wあ-んア-ン一-龜]+工務店',
+            r'[\wあ-んア-ン一-龜]+建設',
+            r'[\wあ-んア-ン一-龜]+ホーム'
+        ]
+        
+        for pattern in company_patterns:
+            query_matches = re.findall(pattern, norm_query)
+            text_matches = re.findall(pattern, norm_text)
+            for q_match in query_matches:
+                for t_match in text_matches:
+                    if q_match == t_match:  # 完全一致
+                        company_score_boost += company_boost * 1.0
+                    elif q_match in t_match or t_match in q_match:  # 部分一致
+                        company_score_boost += company_boost * 0.3
+        
+        # 最終スコア計算
+        final_score = score_kw + company_score_boost
+        
+        doc.metadata['rerank_score'] = final_score
+        doc.metadata['company_boost'] = company_score_boost
+        scored_docs.append((final_score, doc))
 
     # スコアで降順ソート
     reranked = sorted(scored_docs, key=lambda x: x[0], reverse=True)
@@ -236,7 +282,7 @@ def rerank_documents(query: str, docs: List[Document], embedding_function: Any =
     # 上位k件のドキュメントのみを抽出して返す
     final_docs = [doc for score, doc in reranked][:k]
     if final_docs and reranked:
-        logger.debug(f"Reranked top {len(final_docs)} docs. Highest score: {reranked[0][0]:.4f}")
+        logger.debug(f"Reranked top {len(final_docs)} docs. Highest score: {reranked[0][0]:.4f} (company boost: {reranked[0][1].metadata.get('company_boost', 0):.2f})")
     elif not final_docs:
          logger.debug("Reranking resulted in empty list (or k=0).")
 

@@ -1,5 +1,4 @@
 # Core dependencies
-torch>=2.0.0
 transformers>=4.36.0
 datasets>=2.14.0
 accelerate>=0.20.0
@@ -9,6 +8,7 @@ bitsandbytes>=0.41.0
 # RAG and Vector Search
 chromadb>=0.4.0
 langchain>=0.1.0
+langchain-huggingface>=0.0.3 # Added for HuggingFace integration with LangChain
 sentence-transformers>=2.2.0
 faiss-cpu>=1.7.0
 
@@ -29,8 +29,8 @@ seaborn>=0.12.0
 
 # Optimization
 deepspeed>=0.10.0
-flash-attn>=2.3.0
-triton>=2.1.0
+# flash-attn>=2.3.0
+# triton is installed with torch
 
 # Utilities
 tqdm>=4.65.0
@@ -69,3 +69,8 @@ xlsxwriter>=3.1.0
 # Network and API
 requests>=2.31.0
 aiohttp>=3.8.0
+google-generativeai>=0.3.0  # For Gemini API integration
+
+# Other
+xformers>=0.0.22.post7
+safetensors>=0.3.3

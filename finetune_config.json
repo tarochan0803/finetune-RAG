@@ -1,0 +1,22 @@
+{
+    "model_name": "Qwen/Qwen1.5-1.8B",
+    "train_data_path": "/home/ncnadmin/my_rag_project/tourokuten_prediction_finetune.jsonl",
+    "output_dir": "./tourokuten_finetune_model_full",
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "lora_config": {
+        "r": 8,
+        "lora_alpha": 16,
+        "lora_dropout": 0.05,
+        "target_modules": ["q_proj", "v_proj"],
+        "bias": "none",
+        "task_type": "CAUSAL_LM"
+    },
+    "use_quantization": false,
+    "num_train_epochs": 1,
+    "bf16": false,
+    "fp16": false,
+    "tf32": false,
+    "optim": "adamw_torch",
+    "max_train_samples": null
+}

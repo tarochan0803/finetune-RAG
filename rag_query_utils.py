@@ -19,6 +19,7 @@ from langchain_huggingface import HuggingFacePipeline
 from langchain_core.language_models.llms import BaseLLM
 from langchain_core.vectorstores import VectorStoreRetriever # 型ヒント用
 from langchain_core.documents import Document # 型ヒント用
+from chromadb.config import Settings
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig, TextIteratorStreamer
 from peft import PeftModel # LoRA用
 from typing import Tuple, Dict, Any, Optional, List, Generator # 型ヒント用
@@ -94,7 +95,8 @@ def initialize_pipeline(config: Config, logger: logging.Logger, lora_adapter_pat
         vectordb = Chroma(
             collection_name=config.collection_name,
             persist_directory=config.persist_directory,
-            embedding_function=embedding
+            embedding_function=embedding,
+            client_settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
         db_count = vectordb._collection.count()
         logger.info(f"Vector DB loaded with {db_count} documents.")
@@ -279,7 +281,7 @@ def process_single_variant(args: tuple) -> tuple:
             if embedding_function:
                  # === キャッシュ利用する場合 (ステップ3) ===
                  # query_embedding = cached_embedding(query, embedding_function) # utils.pyの関数
-                 reranked_docs = rerank_documents(query, retrieved_docs_set, embedding_function, logger=logger, k=variant_k) # utils.pyの関数
+                 reranked_docs = rerank_documents(query, retrieved_docs_set, embedding_function, logger=logger, k=variant_k, config=config) # utils.pyの関数
                  logger.info(f"{log_prefix} Reranked to {len(reranked_docs)} docs.")
             else:
                  logger.warning(f"{log_prefix} Reranking enabled but no embedding function.")
@@ -469,6 +471,11 @@ def ask_question_ensemble_stream(
     logger.info(f"Processing query (Ensemble Parallel): '{query[:100]}...'")
     print_gpu_usage(logger, "Start Ensemble RAG Query")
 
+    # --- (無効化) ファインチューニングモデルによる直接予測 ---
+    # company情報が取得できない問題を修正するため、この機能を無効化し、
+    # すべてのクエリが通常のRAGフローを通過するようにします。
+
+    # --- 通常のRAGフロー (ファインチューニングモデルによる直接予測がトリガーされない場合) ---
     # Variantパラメータ設定
     if not variant_params:
         num_default_variants = getattr(config, 'num_default_variants', 3)
@@ -481,7 +488,6 @@ def ask_question_ensemble_stream(
     num_variants = len(variant_params)
     logger.info(f"Number of variants to process in parallel: {num_variants}")
 
-    # --- 並列処理の実行 ---
     intermediate_answers: List[str] = [""] * num_variants
     context_snippets: List[str] = ["N/A"] * num_variants
     all_source_documents_nested: List[List[Document]] = [[] for _ in range(num_variants)]

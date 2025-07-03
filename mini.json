@@ -1,0 +1,5 @@
+mkdir -p /home/ncnadmin/my_rag_project
+cat <<'EOF' > /home/ncnadmin/my_rag_project/mini.jsonl
+{"instruction":"挨拶してください","input":"","output":"こんにちは！"}
+{"instruction":"2+2=?","input":"","output":"4"}
+EOF

@@ -10,7 +10,7 @@ import wandb
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datasets import load_dataset, load_from_disk, Dataset
+from datasets import load_dataset, load_from_disk, Dataset, DatasetDict
 from transformers import (
     AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments,
     DataCollatorForSeq2Seq, EarlyStoppingCallback, ProgressCallback,
@@ -18,7 +18,7 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType, prepare_model_for_kbit_training
 from transformers import BitsAndBytesConfig
-import deepspeed
+# # import deepspeed
 
 class FullSpecFineTuner:
     """フルスペック版ファインチューニングクラス"""
@@ -43,10 +43,10 @@ class FullSpecFineTuner:
         """設定ファイル読み込み"""
         default_config = {
             # モデル設定
-            "model_name": "elyza/ELYZA-japanese-Llama-2-7b-instruct",
+            "model_name": "Qwen/Qwen1.5-1.8B",
             "model_alternatives": [
                 "elyza/ELYZA-japanese-Llama-2-13b-instruct",
-                "rinna/youri-7b-instruction",
+                "elyza/ELYZA-japanese-Llama-2-7b-instruct",
                 "stabilityai/japanese-stablelm-instruct-alpha-7b-v2"
             ],
             
@@ -58,20 +58,17 @@ class FullSpecFineTuner:
             "max_eval_samples": 1000,
             
             # トークナイザー設定
-            "max_length": 1024,
+            "max_length": 512,
             "padding_side": "right",
             "truncation_strategy": "longest_first",
             
             # モデル最適化設定
             "use_quantization": True,
             "quantization_config": {
-                "load_in_4bit": True,
-                "bnb_4bit_compute_dtype": "bfloat16",
-                "bnb_4bit_use_double_quant": True,
-                "bnb_4bit_quant_type": "nf4",
+                "load_in_8bit": True,
             },
             "use_gradient_checkpointing": True,
-            "use_flash_attention": True,
+            "use_flash_attention": False,
             
             # LoRA設定
             "lora_config": {
@@ -87,7 +84,7 @@ class FullSpecFineTuner:
             "num_train_epochs": 3,
             "per_device_train_batch_size": 1,
             "per_device_eval_batch_size": 1,
-            "gradient_accumulation_steps": 8,
+            "gradient_accumulation_steps": 16,
             "learning_rate": 2e-4,
             "weight_decay": 0.01,
             "warmup_ratio": 0.03,
@@ -208,53 +205,7 @@ class FullSpecFineTuner:
             
         return env_info
     
-    def auto_optimize_config(self, env_info: Dict[str, Any]):
-        """環境に応じた自動最適化"""
-        if not env_info["cuda_available"]:
-            return
-            
-        vram_gb = env_info["total_memory"]
-        self.logger.info(f"VRAM {vram_gb:.1f}GB用設定最適化")
-        
-        if vram_gb >= 24:  # RTX 4090, A100等
-            self.config.update({
-                "per_device_train_batch_size": 2,
-                "gradient_accumulation_steps": 8,
-                "max_length": 1536,
-                "lora_config": dict(self.config["lora_config"], r=32, lora_alpha=64),
-                "learning_rate": 1e-4,
-            })
-            self.logger.info("🚀 高性能GPU設定適用")
-            
-        elif vram_gb >= 16:  # RTX 4080, 3090等
-            self.config.update({
-                "per_device_train_batch_size": 1,
-                "gradient_accumulation_steps": 12,
-                "max_length": 1024,
-                "lora_config": dict(self.config["lora_config"], r=16, lora_alpha=32),
-                "learning_rate": 5e-5,
-            })
-            self.logger.info("⚡ 中性能GPU設定適用")
-            
-        elif vram_gb >= 12:  # RTX 4070Ti, 3080等
-            self.config.update({
-                "per_device_train_batch_size": 1,
-                "gradient_accumulation_steps": 8,
-                "max_length": 768,
-                "lora_config": dict(self.config["lora_config"], r=8, lora_alpha=16),
-                "learning_rate": 2e-5,
-            })
-            self.logger.info("⚙️ 標準GPU設定適用")
-            
-        else:  # 12GB未満
-            self.config.update({
-                "per_device_train_batch_size": 1,
-                "gradient_accumulation_steps": 4,
-                "max_length": 512,
-                "lora_config": dict(self.config["lora_config"], r=4, lora_alpha=8),
-                "learning_rate": 1e-5,
-            })
-            self.logger.info("💧 軽量GPU設定適用")
+    
     
     def load_and_prepare_data(self) -> Dataset:
         """データ読み込み・前処理"""
@@ -270,10 +221,12 @@ class FullSpecFineTuner:
         
         # データ品質フィルタリング
         def quality_filter(example):
-            input_text = example.get('input', '') or example.get('text', '')
-            output_text = example.get('output', '') or example.get('response', '')
+            # This dataset uses 'prompt' and 'response'
+            input_text = example.get('prompt', '')
+            output_text = example.get('response', '')
             
-            if len(input_text) < 10 or len(output_text) < 5:
+            # Loosen the filter for this specific dataset format
+            if not input_text or not output_text:
                 return False
             if len(input_text) > 2000 or len(output_text) > 1000:
                 return False
@@ -290,17 +243,15 @@ class FullSpecFineTuner:
         
         # 前処理関数
         def preprocess_function(examples):
-            instruction = examples.get("instruction", "").strip()
-            input_text = examples.get("input", "") or examples.get("text", "")
-            output_text = examples.get("output", "") or examples.get("response", "")
+            # This dataset uses 'prompt' and 'response'
+            input_text = examples.get("prompt", "")
+            output_text = examples.get("response", "")
             
             input_text = input_text.strip()
             output_text = output_text.strip()
             
-            if instruction:
-                prompt = f"### 指示:\n{instruction}\n\n### 入力:\n{input_text}\n\n### 応答:\n"
-            else:
-                prompt = f"### 入力:\n{input_text}\n\n### 応答:\n"
+            # Simplified prompt for prediction task
+            prompt = f"### 入力:\n{input_text}\n\n### 応答:\n"
             
             return {"prompt": prompt, "completion": output_text}
         
@@ -392,10 +343,7 @@ class FullSpecFineTuner:
                 )
             
             # キャッシュ保存
-            tokenized_dataset_obj = Dataset.from_dict({
-                "train": tokenized_dataset["train"],
-                "eval": tokenized_dataset["eval"]
-            })
+            tokenized_dataset_obj = DatasetDict(tokenized_dataset)
             tokenized_dataset_obj.save_to_disk(cache_path)
             self.logger.info("✅ トークナイズ完了＆キャッシュ保存")
         
@@ -414,21 +362,17 @@ class FullSpecFineTuner:
         if self.config["use_quantization"]:
             qconfig = self.config["quantization_config"]
             bnb_config = BitsAndBytesConfig(
-                load_in_4bit=qconfig["load_in_4bit"],
-                bnb_4bit_compute_dtype=getattr(torch, qconfig["bnb_4bit_compute_dtype"]),
-                bnb_4bit_use_double_quant=qconfig["bnb_4bit_use_double_quant"],
-                bnb_4bit_quant_type=qconfig["bnb_4bit_quant_type"],
+                load_in_8bit=qconfig.get("load_in_8bit", False),
             )
         
         # モデル読み込み
         model = AutoModelForCausalLM.from_pretrained(
             self.config["model_name"],
             quantization_config=bnb_config,
-            device_map="auto",
             trust_remote_code=True,
             torch_dtype=torch.bfloat16 if self.config["bf16"] else torch.float16,
-            low_cpu_mem_usage=True,
-            attn_implementation="flash_attention_2" if self.config["use_flash_attention"] else None,
+            attn_implementation="sdpa" if self.config["use_flash_attention"] else None,
+            use_safetensors=True,
         )
         
         # 勾配チェックポイント
@@ -438,10 +382,19 @@ class FullSpecFineTuner:
         # kbit学習準備
         if self.config["use_quantization"]:
             model = prepare_model_for_kbit_training(model)
-        
+
         # LoRA設定
-        lora_config = LoraConfig(**self.config["lora_config"])
+        lora_config = LoraConfig(
+            r=self.config["lora_config"]["r"],
+            lora_alpha=self.config["lora_config"]["lora_alpha"],
+            lora_dropout=self.config["lora_config"]["lora_dropout"],
+            bias=self.config["lora_config"]["bias"],
+            task_type=TaskType[self.config["lora_config"]["task_type"]],
+            target_modules=self.config["lora_config"]["target_modules"],
+        )
         model = get_peft_model(model, lora_config)
+        
+        
         
         # パラメータ情報
         trainable_params = model.num_parameters(only_trainable=True)
@@ -475,7 +428,7 @@ class FullSpecFineTuner:
         
         # 環境チェック・最適化
         env_info = self.check_environment()
-        self.auto_optimize_config(env_info)
+        
         
         # データ準備
         dataset = self.load_and_prepare_data()
@@ -509,7 +462,7 @@ class FullSpecFineTuner:
             lr_scheduler_type=self.config["lr_scheduler_type"],
             max_grad_norm=self.config["max_grad_norm"],
             
-            evaluation_strategy=self.config["evaluation_strategy"],
+            eval_strategy=self.config["evaluation_strategy"],
             eval_steps=self.config["eval_steps"],
             save_strategy=self.config["save_strategy"],
             save_steps=self.config["save_steps"],
@@ -590,9 +543,7 @@ def main():
     print("=" * 60)
     
     # 設定ファイルのパス（オプション）
-    config_path = input("設定ファイルのパス（空でデフォルト設定）: ").strip()
-    if not config_path:
-        config_path = None
+    config_path = "/home/ncnadmin/my_rag_project/finetune_config.json"
     
     # ファインチューニング実行
     tuner = FullSpecFineTuner(config_path)

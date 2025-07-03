@@ -5,27 +5,50 @@ import logging
 import sys
 import torch # データ型指定のために追加
 
+# Disable ChromaDB telemetry to prevent capture() error
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_TELEMETRY"] = "False"
+os.environ["ALLOW_RESET"] = "True"
+
+# Additional telemetry suppression
+try:
+    import chromadb
+    # Monkey patch to suppress telemetry errors
+    original_capture = None
+    if hasattr(chromadb, 'telemetry'):
+        telemetry_module = chromadb.telemetry
+        if hasattr(telemetry_module, 'capture'):
+            original_capture = telemetry_module.capture
+            telemetry_module.capture = lambda *_args, **_kwargs: None
+except ImportError:
+    pass
+
 class Config:
     """アプリケーション設定クラス"""
     def __init__(self):
         # --- モデル設定 ---
         # 中間回答生成用 ローカルモデル
-        self.base_model_name = "elyza/ELYZA-japanese-Llama-2-7b-instruct"
+        self.base_model_name = "Qwen/Qwen1.5-1.8B"
         # ★★★ LoRA アダプターのパスは環境に合わせて設定 ★★★
-        self.lora_adapter_path = "./full_spec_rag_model"  # フルスペックファインチューニング出力先
+        self.lora_adapter_path = "./tourokuten_finetune_model_full"  # Qwen3ファインチューニング済みモデル
 
         # <<< NEW: 最適化関連フラグ >>>
-        self.use_4bit_quant = True                # 4bit量子化を使用するかどうか
-        self.quant_compute_dtype = torch.bfloat16 # 量子化計算時のデータ型 (bfloat16推奨)
-        self.model_load_dtype = torch.bfloat16    # モデルロード時のデータ型 (VRAM節約)
-        self.use_flash_attention_2 = True         # Flash Attention 2 を使用試行するかどうか (対応環境の場合)
+        self.use_4bit_quant = False               # 4bit量子化を使用するかどうか (互換性のため無効)
+        self.quant_compute_dtype = torch.float32  # 量子化計算時のデータ型 
+        self.model_load_dtype = torch.float32     # モデルロード時のデータ型 (CPU用)
+        self.use_flash_attention_2 = False        # Flash Attention 2 を使用試行するかどうか (対応環境の場合)
+        self.force_cpu = True                     # CPU強制使用フラグ (CUDA互換性問題のため)
 
         # <<< NEW: 最終統合用 外部APIモデル設定 >>>
         self.synthesizer_api = "gemini" # 使用するAPI ('gemini')
-        self.synthesizer_model_name = "gemini-1.5-flash-latest" # Gemini のモデル名
+        self.synthesizer_model_name = "gemini-1.5-pro-latest" # Gemini のモデル名
         self.gemini_api_key = os.getenv("GEMINI_API_KEY") # 環境変数から読み込む
+        
+        # 自動入力用Gemini設定
+        self.auto_fill_use_gemini = False  # 自動入力でGemini APIを使用
+        self.auto_fill_model = "gemini-1.5-flash-latest"  # 自動入力用モデル（高速・高精度）
 
-        # 埋め込みモデル (RAG用)
+        # 埋め込みモデル (RAG用) - 768次元対応
         self.embeddings_model = "intfloat/multilingual-e5-base"
 
         # --- RAG設定 ---
@@ -33,12 +56,27 @@ class Config:
         self.chunk_overlap = 100
 
         # --- 検索精度向上用設定 ---
-        self.enable_query_expansion = False # クエリ拡張 (デフォルト無効)
-        self.enable_reranking = False      # リランキング (デフォルト無効)
-        # self.rerank_weight = 0.5 # リランキング使用時に設定
-        self.query_expansion_dict = { "会社": ["企業", "法人"], "条件": ["要件", "規定"] }
-        # RAGapp.py の詳細表示で使うメタデータカラム名リスト
-        self.metadata_display_columns = ["source", "type", "major_item", "middle_item", "small_item"]
+        self.enable_query_expansion = True  # クエリ拡張を有効化
+        self.enable_reranking = True        # リランキングを有効化
+        self.rerank_weight = 0.3            # リランキング重み
+        self.query_expansion_dict = {
+            # 企業・工務店関連(最重要)
+            "会社": ["企業", "法人", "業者", "店舗", "事業者", "工務店", "株式会社", "有限会社"],
+            "工務店": ["会社", "企業", "建設会社", "建築会社", "施工会社", "業者"],
+            "建設": ["建築", "工事", "施工", "土木", "工務店"],
+            "登録店": ["登録会社", "加盟店", "取引先", "提携先"],
+            # 仕様・条件関連
+            "条件": ["要件", "規定", "仕様", "基準", "規格"],
+            "設計": ["プランニング", "計画", "図面", "構造"],
+            "材料": ["部材", "資材", "素材", "製品"],
+            "登録": ["認定", "承認", "許可", "資格"]
+        }
+        # RAGapp.py の詳細表示で使うメタデータカラム名リスト(企業名優先)
+        self.metadata_display_columns = ["company", "source", "type", "major_item", "middle_item", "small_item"]
+        
+        # 企業名検索強化設定
+        self.company_boost_factor = 2.0  # 企業名マッチ時のスコア増強率
+        self.company_keywords = ["株式会社", "有限会社", "合同会社", "協同組合", "工務店", "建設"]
 
         # --- データとDB設定 ---
         self.persist_directory = "./chroma_db"
@@ -50,13 +88,13 @@ class Config:
             "major_item", "middle_item", "small_item", "text"
         ]
 
-        # --- LLM生成パラメータ (中間回答生成用 ELYZA 7B - 最適化反映) ---
-        self.max_new_tokens = 128      # 256から削減 (高速化)
-        self.temperature = 0.1         # 低めに設定 (決定論的、元々0.1)
-        self.top_p = 0.9               # do_sample=Falseなら無視される (元々0.9)
-        self.repetition_penalty = 1.2  # (元々1.2)
-        self.do_sample = False         # Falseに設定 (高速化・決定論的)
-        self.num_beams = 1             # ビームサーチ無効化 (高速化)
+        # --- LLM生成パラメータ (中間回答生成用 - 精度向上) ---
+        self.max_new_tokens = 256      # トークン数復元
+        self.temperature = 0.2         # 少し創造性を追加
+        self.top_p = 0.95              # サンプリング範囲拡大
+        self.repetition_penalty = 1.1  # 繰り返し制限緩和
+        self.do_sample = True          # サンプリング有効化
+        self.num_beams = 1             # ビームサーチ維持
 
         # --- LLM生成パラメータ (最終統合用 API - 変更なし) ---
         self.synthesizer_max_new_tokens = 1024
@@ -64,14 +102,14 @@ class Config:
         self.synthesizer_top_p = 1.0
 
         # --- アンサンブルRAG用設定 ---
-        self.rag_variant_k = [3, 5, 5] # 各バリアントのデフォルト検索数
+        self.rag_variant_k = [7, 10, 12] # 各バリアントの検索数を増加 (変更)
         # <<< NEW: 並列処理関連設定 >>>
-        self.max_parallel_variants = 2 # Variant処理の最大同時実行数 (VRAMに応じて調整: 1, 2, 3...)
+        self.max_parallel_variants = 3 # 並列処理数を増加
 
-        # 中間回答生成用プロンプトテンプレート (変更なし)
-        self.intermediate_prompt_template = """与えられた「参考情報」のみを絶対的な根拠とし、「質問」に答えてください。
-* 参考情報の中に、質問の条件に合致する直接的な記述がある場合のみ、その情報を簡潔に述べてください。
-* 参考情報の中に、質問の条件に合致する直接的な記述がない場合、または参考情報自体がない場合は、他の知識や推測を一切交えず、必ず「提供された情報からは判断できません。」という一文のみで回答してください。
+        # 中間回答生成用プロンプトテンプレート (変更)
+        self.intermediate_prompt_template = """与えられた「参考情報」のみを根拠とし、「質問」に答えてください。
+* 参考情報の中に質問の答えとなる情報がある場合は、その情報を簡潔にまとめて回答してください。
+* 参考情報の中に質問の答えとなる情報がない場合は、他の知識や推測を一切交えず、必ず「提供された情報からは判断できません。」という一文のみで回答してください。
 
 # 参考情報:
 {context}
