@@ -13,6 +13,7 @@
 - **⚡ 高速検索**: 高度なベクトル検索とハイブリッド検索
 - **🎨 美しいUI**: Streamlit Webインターフェース
 - **📊 詳細分析**: 検索精度・性能メトリクス
+- **💡 自動入力**: RAGを活用したフォームの自動入力機能
 
 ### 🧠 先進的ファインチューニング
 - **🔄 継続学習**: 知識の忘却を防ぐEWC技術
@@ -31,8 +32,8 @@
 
 ### 1️⃣ インストール
 ```bash
-git clone https://github.com/your-username/advanced-rag-system.git
-cd advanced-rag-system
+git clone https://github.com/tarochan0803/finetune-RAG.git
+cd finetune-RAG
 pip install -r requirements.txt
 ```
 
@@ -46,18 +47,16 @@ python3 auto_optimized_finetune.py
 ```
 
 ### 3️⃣ 設定更新
+`config.py`を開き、`lora_adapter_path`をファインチューニングの出力先に設定します。
 ```python
 # config.py
-lora_adapter_path = "./full_spec_rag_model"  # ファインチューニング出力先
+lora_adapter_path = "./tourokuten_finetune_model_full"  # 例: ファインチューニング出力先
 ```
 
 ### 4️⃣ RAGシステム起動
 ```bash
 # Web UI付き高性能版
-python3 final_rag_app.py
-
-# またはシンプル版
-python3 simple_rag_app.py
+streamlit run RAGapp.py
 ```
 
 ---
@@ -65,10 +64,11 @@ python3 simple_rag_app.py
 ## 📁 プロジェクト構成
 
 ```
-advanced-rag-system/
+finetune-RAG/
 ├── 🎯 RAGシステム
-│   ├── final_rag_app.py           # 高性能RAG（推奨）
-│   ├── simple_rag_app.py          # 軽量RAG
+│   ├── RAGapp.py                  # メインの高性能RAGアプリ（Streamlit UI）
+│   ├── final_rag_app.py           # (旧)高性能RAG
+│   ├── simple_rag_app.py          # (旧)軽量RAG
 │   └── immediate_rag_system.py    # 即席RAG
 ├── 🧠 ファインチューニング
 │   ├── full_spec_finetune.py      # フルスペック版（推奨）
@@ -81,14 +81,17 @@ advanced-rag-system/
 ├── ⚙️ 設定・ユーティリティ
 │   ├── config.py                  # メイン設定
 │   ├── utils.py                   # ユーティリティ
-│   └── rag_query_utils.py         # クエリ処理
+│   ├── rag_query_utils.py         # クエリ処理
+│   ├── form_auto_fill.py          # フォーム自動入力UI
+│   ├── auto_fill_utils.py         # フォーム自動入力ロジック
+│   └── company_master.py          # 工務店マスタ機能
 ├── 📊 データ処理
 │   ├── enhanced_training_data_generator.py
 │   └── advanced_data_augmenter.py
 └── 📚 ドキュメント
     ├── README.md                  # このファイル
-    ├── USAGE_GUIDE.md            # 詳細使用ガイド
-    └── docs/                     # 追加ドキュメント
+    ├── USAGE_GUIDE.md             # 詳細使用ガイド
+    └── docs/                      # 追加ドキュメント
 ```
 
 ---
@@ -104,7 +107,7 @@ python3 auto_optimized_finetune.py
 sed -i 's|lora_adapter_path = ".*"|lora_adapter_path = "./optimized_rag_model"|' config.py
 
 # 3. RAG起動
-python3 simple_rag_app.py
+streamlit run RAGapp.py
 ```
 
 ### 🥈 標準ユーザー向け（高品質）
@@ -113,10 +116,10 @@ python3 simple_rag_app.py
 python3 full_spec_finetune.py
 
 # 2. 設定更新
-sed -i 's|lora_adapter_path = ".*"|lora_adapter_path = "./full_spec_rag_model"|' config.py
+sed -i 's|lora_adapter_path = ".*"|lora_adapter_path = "./tourokuten_finetune_model_full"|' config.py
 
 # 3. 高性能RAG起動
-python3 final_rag_app.py
+streamlit run RAGapp.py
 ```
 
 ### 🥉 上級ユーザー向け（最高性能）
@@ -132,7 +135,7 @@ python3 continual_learning_finetune.py --task-name "技術Q&A" --data-path "tech
 python3 continual_learning_finetune.py --evaluate
 
 # 4. RAG起動
-python3 final_rag_app.py
+streamlit run RAGapp.py
 ```
 
 ---
@@ -143,16 +146,17 @@ python3 final_rag_app.py
 
 | GPU | VRAM | 推奨ファインチューニング | 推奨RAG |
 |-----|------|----------------------|---------|
-| RTX 4090 | 24GB | `full_spec_finetune.py` | `final_rag_app.py` |
-| RTX 4080 | 16GB | `auto_optimized_finetune.py` | `final_rag_app.py` |
-| RTX 4070 | 12GB | `auto_optimized_finetune.py` | `simple_rag_app.py` |
-| RTX 4060 | 8GB | `cpu_optimized_finetune.py` | `simple_rag_app.py` |
+| RTX 4090 | 24GB | `full_spec_finetune.py` | `RAGapp.py` |
+| RTX 4080 | 16GB | `auto_optimized_finetune.py` | `RAGapp.py` |
+| RTX 4070 | 12GB | `auto_optimized_finetune.py` | `RAGapp.py` |
+| RTX 4060 | 8GB | `cpu_optimized_finetune.py` | `RAGapp.py` |
 
 ### モデル選択
 ```python
 # config.py で変更可能
-base_model_path = "elyza/ELYZA-japanese-Llama-2-7b-instruct"  # 7B標準
-# base_model_path = "elyza/ELYZA-japanese-Llama-2-13b-instruct"  # 13B高性能
+base_model_name = "Qwen/Qwen1.5-1.8B"  # 現在のデフォルトモデル
+# base_model_name = "elyza/ELYZA-japanese-Llama-2-7b-instruct"  # 7B標準
+# base_model_name = "elyza/ELYZA-japanese-Llama-2-13b-instruct"  # 13B高性能
 ```
 
 ---
@@ -195,14 +199,14 @@ python3 megatron_swift_finetune.py \
 |--------|------|------|-----------|--------|
 | `auto_optimized` | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ |
 | `full_spec` | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
-| `continual_learning` | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ |
+| `continual_learning` | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ |
 
 ### RAG性能比較
 
 | モード | 精度 | 速度 | リソース | UI品質 |
 |--------|------|------|----------|--------|
+| `RAGapp.py` | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | `simple_rag` | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
-| `final_rag` | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 
 ---
 
@@ -219,13 +223,13 @@ python3 megatron_swift_finetune.py \
 # config.py カスタマイズ例
 class Config:
     # モデル設定
-    base_model_path = "your-model-path"
+    base_model_name = "your-model-path"
     lora_adapter_path = "./your-tuned-model"
     
     # RAG設定
     chunk_size = 500
     chunk_overlap = 50
-    top_k = 5
+    rag_variant_k = [5, 7, 10] # 検索するドキュメント数
     
     # UI設定
     app_title = "カスタムRAGシステム"
@@ -298,8 +302,8 @@ MIT License - 詳細は[LICENSE](LICENSE)ファイルを参照
 
 ## 📞 サポート
 
-- 🐛 バグ報告: [Issues](https://github.com/your-username/advanced-rag-system/issues)
-- 💬 質問・議論: [Discussions](https://github.com/your-username/advanced-rag-system/discussions)
+- 🐛 バグ報告: [Issues](https://github.com/tarochan0803/finetune-RAG/issues)
+- 💬 質問・議論: [Discussions](https://github.com/tarochan0803/finetune-RAG/discussions)
 - 📧 Email: your-email@example.com
 
 ---
