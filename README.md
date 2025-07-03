@@ -304,7 +304,7 @@ MIT License - 詳細は[LICENSE](LICENSE)ファイルを参照
 
 - 🐛 バグ報告: [Issues](https://github.com/tarochan0803/finetune-RAG/issues)
 - 💬 質問・議論: [Discussions](https://github.com/tarochan0803/finetune-RAG/discussions)
-- 📧 Email: your-email@example.com
+- 📧 Email: taro0803tennis@gmail.com
 
 ---
 
@@ -312,6 +312,6 @@ MIT License - 詳細は[LICENSE](LICENSE)ファイルを参照
 
 **⭐ このプロジェクトが役立ったらスターをお願いします！**
 
-Made with ❤️ by [Your Name]
+Made with ❤️ by [tarochan0803]
 
 </div>
